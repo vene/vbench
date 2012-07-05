@@ -92,9 +92,9 @@ class Benchmark(object):
                 result['mem_succeeded'] = True
             except:
                 result['mem_succeeded'] = False
-                buf = StringIO()
                 traceback.print_exc(file=buf)
                 result['traceback'] += buf
+
         self._cleanup(ns)
         return result
 
