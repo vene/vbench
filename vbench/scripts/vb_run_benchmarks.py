@@ -1,4 +1,5 @@
 import sys
+import traceback
 import cPickle as pickle
 
 if len(sys.argv) != 3:
@@ -13,6 +14,7 @@ for bmk in benchmarks:
     try:
         res = bmk.run()
     except Exception:
+        traceback.print_exc()
         continue
     results[bmk.checksum] = res
 
