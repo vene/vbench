@@ -401,7 +401,7 @@ def magic_timeit(ns, stmt, ncalls=None, repeat=3, force_ms=False):
 
 
 # Adapted from memory_profiler
-def magic_memit(ns, line='', repeat=2, timeout=None, run_in_place=True):
+def magic_memit(ns, line='', repeat=1, timeout=None, run_in_place=True):
     """Measure memory usage of a Python statement
 
     Usage, in line mode:
