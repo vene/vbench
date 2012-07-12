@@ -494,8 +494,8 @@ def magic_memit(ns, line='', repeat=1, timeout=None, run_in_place=True):
                 q.put(float('-inf'))
 
         if not at_least_one_worked:
-            raise RuntimeError('ERROR: all subprocesses exited unsuccessfully. Try again '
-                   'with the `-i` option.')
+            raise RuntimeError('ERROR: all subprocesses exited unsuccessfully.'
+                               ' Try again with the `-i` option.')
 
     usages = [q.get() for _ in xrange(repeat)]
     usage = max(usages)
