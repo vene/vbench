@@ -61,6 +61,7 @@ class BenchmarkRunner(object):
                                     always_clean=always_clean,
                                     dependencies=module_dependencies)
         self._register_benchmarks()
+        self._python = os.environ.get('VBENCH_PYTHON', 'python')
 
     def run(self):
         revisions = self._get_revisions_to_run()
@@ -137,7 +138,8 @@ class BenchmarkRunner(object):
         pickle.dump(need_to_run, open(pickle_path, 'w'))
 
         # run the process
-        cmd = 'python vb_run_benchmarks.py %s %s' % (pickle_path, results_path)
+        cmd = '%s vb_run_benchmarks.py %s %s' % (self._python, pickle_path,
+                                                 results_path)
         if self.time:
             cmd = 'time ' + cmd
         proc = subprocess.Popen(cmd, stdout=subprocess.PIPE,
