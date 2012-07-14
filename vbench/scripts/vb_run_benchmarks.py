@@ -15,7 +15,7 @@ for bmk in benchmarks:
         res = bmk.run()
         results[bmk.checksum] = res
     except Exception:
-        print 'Exception in benchmark %s:' % bmk.name
+        print >> sys.stderr, 'Exception in benchmark %s:' % bmk.name
         traceback.print_exc()
         continue
 
