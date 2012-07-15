@@ -22,6 +22,7 @@ class BenchmarkRunner(object):
         all: benchmark every revision
         last: only try to run the last revision
         some integer N: run each N revisions
+        list of dates: run first revision after each date in the list
     overwrite : boolean
     dependencies : list or None
         should be list of modules visible in cwd
@@ -210,6 +211,9 @@ class BenchmarkRunner(object):
             # to look for the second last, etc, until the last one that was run
         elif isinstance(self.run_option, int):
             revs_to_run = rev_by_timestamp.values[::self.run_option]
+        elif isinstance(self.run_option, list):
+            revs_to_run = [rev_by_timestamp[rev_by_timestamp.keys() > date][0]
+                           for date in self.run_option]
         else:
             raise Exception('unrecognized run_option %s' % self.run_option)
 
