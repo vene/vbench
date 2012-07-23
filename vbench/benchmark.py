@@ -112,7 +112,7 @@ class Benchmark(object):
 
 class MemoryBenchmark(Benchmark):
     def run(self):
-        result = super(Benchmark, self).run()
+        result = super(MemoryBenchmark, self).run()
         try:
             ns = self._setup()
             mem_usage = magic_memit(ns, self.code, repeat=self.repeat)
@@ -131,7 +131,8 @@ class TimeitBenchmark(Benchmark):
     def __init__(self, code, setup, ncalls=None, repeat=3, cleanup=None,
                  name=None, description=None, start_date=None,
                  logy=False):
-        super(Benchmark, self).__init__(name, description, start_date, logy)
+        super(TimeitBenchmark, self).__init__(name, description, start_date,
+                                              logy)
         self.code = code
         self.setup = setup
         self.cleanup = cleanup or ''
@@ -199,8 +200,9 @@ class TimeitBenchmark(Benchmark):
 %s
 
 """ % (indent(self.setup), indent(self.code))
-        return super(Benchmark, self).to_rst(benchmark_code=benchmark_code,
-                                             image_paths=image_paths)
+        return super(TimeitBenchmark, self).to_rst(
+                                            benchmark_code=benchmark_code,
+                                            image_paths=image_paths)
 
     def _run(self, ns, ncalls, disable_gc=False):
         if ncalls is None:
