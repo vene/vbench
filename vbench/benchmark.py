@@ -1,5 +1,6 @@
 # pylint: disable=W0122
 
+from abc import ABCMeta, abstractmethod
 from cStringIO import StringIO
 
 import cProfile
@@ -15,16 +16,10 @@ import inspect
 
 
 class Benchmark(object):
+    __metaclass__ = ABCMeta
 
-    def __init__(self, code, setup, ncalls=None, repeat=3, cleanup=None,
-                 name=None, description=None, start_date=None,
+    def __init__(self, name=None, description=None, start_date=None,
                  logy=False):
-        self.code = code
-        self.setup = setup
-        self.cleanup = cleanup or ''
-        self.ncalls = ncalls
-        self.repeat = repeat
-
         if name is None:
             try:
                 name = _get_assigned_name(inspect.currentframe().f_back)
@@ -32,98 +27,12 @@ class Benchmark(object):
                 pass
 
         self.name = name
-
         self.description = description
         self.start_date = start_date
         self.logy = logy
 
     def __repr__(self):
         return "Benchmark('%s')" % self.name
-
-    def _setup(self):
-        ns = globals().copy()
-        exec self.setup in ns
-        return ns
-
-    def _cleanup(self, ns):
-        exec self.cleanup in ns
-
-    @property
-    def checksum(self):
-        return hashlib.md5(self.setup + self.code + self.cleanup).hexdigest()
-
-    def profile(self, ncalls):
-        prof = cProfile.Profile()
-        ns = self._setup()
-
-        code = compile(self.code, '<f>', 'exec')
-
-        def f(*args, **kw):
-            for i in xrange(ncalls):
-                exec code in ns
-        prof.runcall(f)
-
-        self._cleanup(ns)
-
-        return pstats.Stats(prof).sort_stats('cumulative')
-
-    def get_results(self, db_path):
-        from vbench.db import BenchmarkDB
-        db = BenchmarkDB.get_instance(db_path)
-        return db.get_benchmark_results(self.checksum)
-
-    def run(self):
-        ns = self._setup()
-
-        try:
-            result = magic_timeit(ns, self.code, ncalls=self.ncalls,
-                                  repeat=self.repeat, force_ms=True)
-            result['succeeded'] = True
-        except:
-            buf = StringIO()
-            traceback.print_exc(file=buf)
-            result = {'succeeded': False, 'traceback': buf.getvalue()}
-
-        self._cleanup(ns)
-        return result
-
-    def _run(self, ns, ncalls, disable_gc=False):
-        if ncalls is None:
-            ncalls = self.ncalls
-        code = self.code
-        if disable_gc:
-            gc.disable()
-
-        start = time.clock()
-        for _ in xrange(ncalls):
-            exec code in ns
-
-        elapsed = time.clock() - start
-        if disable_gc:
-            gc.enable()
-
-        return elapsed
-
-    def to_rst(self, image_path=None):
-        output = """**Benchmark setup**
-
-.. code-block:: python
-
-%s
-
-**Benchmark statement**
-
-.. code-block:: python
-
-%s
-
-""" % (indent(self.setup), indent(self.code))
-
-        if image_path is not None:
-            output += ("**Performance graph**\n\n.. image:: %s"
-                       "\n   :width: 6in" % image_path)
-
-        return output
 
     def plot(self, db_path, label='time', ax=None, title=True):
         import matplotlib.pyplot as plt
@@ -169,6 +78,125 @@ class Benchmark(object):
             ax.set_title(self.name)
 
         return ax
+
+    # The abstract methods:
+    @abstractmethod
+    def run(self):
+        pass
+
+    @abstractmethod
+    @property
+    def checksum(self):
+        return hashlib.md5(self.name + self.description).hexdigest()
+
+    @abstractmethod
+    def get_results(self, db_path):
+        from vbench.db import BenchmarkDB
+        db = BenchmarkDB.get_instance(db_path)
+        return db.get_benchmark_results(self.checksum)
+
+    @abstractmethod
+    def to_rst(self):
+        output = self.name
+        output += '\n' + '-' * len(self.name) + '\n\n'
+        if self.description:
+            output += self.description + '\n'
+        return output
+
+
+class TimeitBenchmark(Benchmark):
+    def __init__(self, code, setup, ncalls=None, repeat=3, cleanup=None,
+                 name=None, description=None, start_date=None,
+                 logy=False):
+        super(Benchmark, self).__init__(name, description, start_date, logy)
+        self.code = code
+        self.setup = setup
+        self.cleanup = cleanup or ''
+        self.ncalls = ncalls
+        self.repeat = repeat
+
+    @property
+    def checksum(self):
+        return hashlib.md5(self.setup + self.code + self.cleanup).hexdigest()
+
+    def _setup(self):
+        ns = globals().copy()
+        exec self.setup in ns
+        return ns
+
+    def _cleanup(self, ns):
+        exec self.cleanup in ns
+
+    def profile(self, ncalls):
+        prof = cProfile.Profile()
+        ns = self._setup()
+
+        code = compile(self.code, '<f>', 'exec')
+
+        def f(*args, **kw):
+            for i in xrange(ncalls):
+                exec code in ns
+        prof.runcall(f)
+
+        self._cleanup(ns)
+
+        return pstats.Stats(prof).sort_stats('cumulative')
+
+    def run(self):
+        ns = self._setup()
+
+        try:
+            result = magic_timeit(ns, self.code, ncalls=self.ncalls,
+                                  repeat=self.repeat, force_ms=True)
+            result['succeeded'] = True
+        except:
+            buf = StringIO()
+            traceback.print_exc(file=buf)
+            result = {'succeeded': False, 'traceback': buf.getvalue()}
+
+        self._cleanup(ns)
+        return result
+
+    def to_rst(self, image_path=None):
+        output = super(Benchmark, self).to_rst()
+        output += """**Benchmark setup**
+
+.. code-block:: python
+
+%s
+
+**Benchmark statement**
+
+.. code-block:: python
+
+%s
+
+""" % (indent(self.setup), indent(self.code))
+
+        if image_path is not None:
+            output += ("**Performance graph**\n\n.. image:: %s"
+                       "\n   :width: 6in" % image_path)
+
+        return output
+
+
+
+    def _run(self, ns, ncalls, disable_gc=False):
+        if ncalls is None:
+            ncalls = self.ncalls
+        code = self.code
+        if disable_gc:
+            gc.disable()
+
+        start = time.clock()
+        for _ in xrange(ncalls):
+            exec code in ns
+
+        elapsed = time.clock() - start
+        if disable_gc:
+            gc.enable()
+
+        return elapsed
 
 
 def _get_assigned_name(frame):
