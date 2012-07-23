@@ -81,22 +81,11 @@ class Benchmark(object):
 
         return ax
 
-    # The abstract methods:
-    @abstractmethod
-    def run(self):
-        pass
-
-    @abstractproperty
-    def checksum(self):
-        return hashlib.md5(self.name + self.description).hexdigest()
-
-    @abstractmethod
     def get_results(self, db_path):
         from vbench.db import BenchmarkDB
         db = BenchmarkDB.get_instance(db_path)
         return db.get_benchmark_results(self.checksum)
 
-    @abstractmethod
     def to_rst(self, benchmark_code=None, image_paths=None):
         output = self.name
         output += '\n' + '-' * len(self.name) + '\n\n'
@@ -110,6 +99,15 @@ class Benchmark(object):
             output += ("**%s**\n\n.. image:: %s"
                        "\n   :width: 6in\n\n" % (title, path))
         return output
+
+    # The abstract methods:
+    @abstractmethod
+    def run(self):
+        pass
+
+    @abstractproperty
+    def checksum(self):
+        return hashlib.md5(self.name + self.description).hexdigest()
 
 
 class MemoryBenchmark(Benchmark):
