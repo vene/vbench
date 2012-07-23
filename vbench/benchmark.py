@@ -30,7 +30,6 @@ class Benchmark(object):
         self.description = description
         self.start_date = start_date
         self.logy = logy
-        self.memory = memory
 
     def __repr__(self):
         return "Benchmark('%s')" % self.name
