@@ -29,6 +29,12 @@ class BenchmarkDB(object):
             Column('timestamp', sqltypes.DateTime, nullable=False),
             Column('ncalls', sqltypes.String(50)),
             Column('timing', sqltypes.Float),
+            Column('timing_min', sqltypes.Float),
+            Column('timing_max', sqltypes.Float),
+            Column('timing_mean', sqltypes.Float),
+            Column('timing_median', sqltypes.Float),
+            Column('timing_std', sqltypes.Float),
+            Column('profile', sqltypes.Text),
             Column('memory', sqltypes.Float),
             Column('traceback', sqltypes.Text),
         )
@@ -97,16 +103,14 @@ class BenchmarkDB(object):
         """
         pass
 
-    def write_result(self, checksum, revision, timestamp, ncalls,
-                     timing, memory, traceback=None, overwrite=False):
+    def write_result(self, checksum, revision, timestamp, result,
+                     overwrite=False):
         """
 
         """
         ins = self._results.insert()
         ins = ins.values(checksum=checksum, revision=revision,
-                         timestamp=timestamp,
-                         ncalls=ncalls, timing=timing, memory=memory,
-                         traceback=traceback)
+                         timestamp=timestamp, **result)
         self.conn.execute(ins)  # XXX: return the result?
 
     def delete_result(self, checksum, revision):
@@ -156,10 +160,19 @@ class BenchmarkDB(object):
     def get_benchmark_results(self, checksum):
         """
 
+            Column('timing_min', sqltypes.Float),
+            Column('timing_max', sqltypes.Float),
+            Column('timing_mean', sqltypes.Float),
+            Column('timing_median', sqltypes.Float),
+            Column('timing_std', sqltypes.Float),
+            Column('profile', sqltypes.Text),
         """
         tab = self._results
         stmt = sql.select([tab.c.timestamp, tab.c.revision, tab.c.ncalls,
-                           tab.c.timing, tab.c.memory, tab.c.traceback],
+                           tab.c.timing, tab.c.timing_min, tab.c.timing_max,
+                           tab.c.timing_mean, tab.c.timing_median,
+                           tab.c.timing_std, tab.c.profile, tab.c.memory,
+                           tab.c.traceback],
                           sql.and_(tab.c.checksum == checksum))
         results = self.conn.execute(stmt)
 

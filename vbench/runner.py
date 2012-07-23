@@ -101,11 +101,7 @@ class BenchmarkRunner(object):
 
             any_succeeded = any_succeeded or 'timing' in timing
 
-            self.db.write_result(checksum, rev, timestamp,
-                                 timing.get('loops'),
-                                 timing.get('timing'),
-                                 timing.get('memory'),
-                                 timing.get('traceback'))
+            self.db.write_result(checksum, rev, timestamp, result=timing)
 
         return any_succeeded, n_active_benchmarks
 
