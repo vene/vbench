@@ -288,7 +288,7 @@ class CProfileBenchmarkMixin(PythonBenchmark):
         if db_path:
             results = self.get_results(db_path)
             profile_out = results.get('profile')
-            if profile_out:
+            if profile_out is not None:
                 profile_out = profile_out[-1]
                 result += """
 **Profiler output**
