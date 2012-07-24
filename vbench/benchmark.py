@@ -266,11 +266,11 @@ class CProfileBenchmarkMixin(PythonBenchmark):
             stats.print_stats()
             profile = sys.stdout.getvalue()
             sys.stdout.close()
-            result = {
+            result.update({
                 'succeeded': True,
                 'timing': stats.total_tt,
                 'profile': profile
-            }
+            })
         except:
             buf = StringIO()
             result['succeeded'] = False
@@ -290,7 +290,7 @@ class CProfileBenchmarkMixin(PythonBenchmark):
             profile_out = results.get('profile')
             if profile_out:
                 profile_out = profile_out[-1]
-        result += """
+                result += """
 **Profiler output**
 
 ::
