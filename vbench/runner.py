@@ -100,7 +100,9 @@ class BenchmarkRunner(object):
             timestamp = self.repo.timestamps[rev]
 
             any_succeeded = any_succeeded or 'timing' in timing
-            timing.pop('succeeded', None)
+            for key in timing.keys():
+                if key.endswith('succeeded'):
+                    timing.pop(key, None)
             self.db.write_result(checksum, rev, timestamp, result=timing)
 
         return any_succeeded, n_active_benchmarks

@@ -161,11 +161,11 @@ class PythonBenchmark(Benchmark):
 
         if result['succeeded']:
             result.update({
-                'timings_min': min(timings),
-                'timings_max': max(timings),
-                'timings_mean': mean(timings),
-                'timings_median': median(timings),
-                'timings_std': std(timings)
+                'timing_min': min(timings),
+                'timing_max': max(timings),
+                'timing_mean': mean(timings),
+                'timing_median': median(timings),
+                'timing_std': std(timings)
             })
         return result
 
