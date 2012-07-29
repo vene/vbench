@@ -35,6 +35,7 @@ class BenchmarkDB(object):
             Column('timing_median', sqltypes.Float),
             Column('timing_std', sqltypes.Float),
             Column('profile', sqltypes.Text),
+            Column('line_profile', sqltypes.Text),
             Column('memory', sqltypes.Float),
             Column('traceback', sqltypes.Text),
         )
@@ -166,13 +167,14 @@ class BenchmarkDB(object):
             Column('timing_median', sqltypes.Float),
             Column('timing_std', sqltypes.Float),
             Column('profile', sqltypes.Text),
+            Column('line_profile'),
         """
         tab = self._results
         stmt = sql.select([tab.c.timestamp, tab.c.revision, tab.c.ncalls,
                            tab.c.timing, tab.c.timing_min, tab.c.timing_max,
                            tab.c.timing_mean, tab.c.timing_median,
-                           tab.c.timing_std, tab.c.profile, tab.c.memory,
-                           tab.c.traceback],
+                           tab.c.timing_std, tab.c.profile, tab.c.line_profile,
+                           tab.c.memory, tab.c.traceback],
                           sql.and_(tab.c.checksum == checksum))
         results = self.conn.execute(stmt)
 

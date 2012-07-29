@@ -299,6 +299,42 @@ class CProfileBenchmarkMixin(PythonBenchmark):
         return result
 
 
+class LineProfilerBenchmarkMixin(PythonBenchmark):
+    def __init__(self, *args, **kwargs):
+        super(LineProfilerBenchmarkMixin, self).__init__(*args, **kwargs)
+        if 'functions' in kwargs:
+            self.functions = kwargs['functions']
+
+    def run(self):
+        from line_profiler import LineProfiler
+        result = super(LineProfilerBenchmarkMixin, self).run()
+        ns = self._setup()
+        prof = LineProfiler(*[eval(fun, ns) for fun in self.functions])
+
+        code = compile(self.code, '<f>', 'exec')
+
+        def f(*args, **kw):
+            for i in xrange(self.ncalls):
+                exec code in ns
+
+        try:
+            prof.runcall(f)
+            stats = StringIO()
+            prof.print_stats(stats)
+            result.update({
+                'succeeded': True,
+                'line_profile': stats.getvalue()
+            })
+        except:
+            buf = StringIO()
+            result['succeeded'] = False
+            traceback.print_exc(file=buf)
+            result['traceback'] += buf
+
+        self._cleanup(ns)
+        return result
+
+
 def _get_assigned_name(frame):
     import ast
 
