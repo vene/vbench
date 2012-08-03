@@ -259,7 +259,6 @@ class MemoryBenchmarkMixin(PythonBenchmark):
         try:
             mem_usages = magic_memit(ns, self.code, repeat=self.mem_repeat)
             succeeded = True
-            traceback = ''
         except:
             buf = StringIO()
             succeeded = False
