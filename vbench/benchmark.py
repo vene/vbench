@@ -249,18 +249,28 @@ class TimeitBenchmark(PythonBenchmark):
 
 
 class MemoryBenchmarkMixin(PythonBenchmark):
+    def __init__(self, *args, **kwargs):
+        self.mem_repeat = kwargs.pop('mem_repeat', 1)
+        super(MemoryBenchmarkMixin, self).__init__(*args, **kwargs)
+
     def run(self):
         results = super(MemoryBenchmarkMixin, self).run()
         ns = self._setup()
-        for step, result in zip(self.code, results):
-            try:
-                mem_usage = magic_memit(ns, step, repeat=self.repeat)
-                result['memory'] = mem_usage
+        try:
+            mem_usages = magic_memit(ns, self.code, repeat=self.mem_repeat)
+            succeeded = True
+            traceback = ''
+        except:
+            buf = StringIO()
+            succeeded = False
+            traceback.print_exc(file=buf)
+        if succeeded:
+            for usage, result in zip(mem_usages, results):
+                result['memory'] = usage
                 result['mem_succeeded'] = True
-            except:
-                buf = StringIO()
+        else:
+            for result in results:
                 result['mem_succeeded'] = False
-                traceback.print_exc(file=buf)
                 result['traceback'] += buf.getvalue()
         self._cleanup(ns)
         return results
@@ -352,7 +362,7 @@ class LineProfilerBenchmarkMixin(PythonBenchmark):
                 traceback.print_exc(file=buf)
                 result['traceback'] += buf.getvalue()
 
-        self._cleanup(gns)
+        self._cleanup(ns)
         return results
 
 
@@ -625,17 +635,19 @@ def magic_memit(ns, line='', repeat=1, timeout=None, run_in_place=False):
                '`-i` option.')
         run_in_place = True
 
-    def _get_usage(q, stmt, setup='pass', ns={}):
+    def _get_usage(q, stmts, ns={}):
         from memory_profiler import memory_usage as _mu
-        try:
-            exec setup in ns
-            _mu0 = _mu()[0]
-            exec stmt in ns
-            _mu1 = _mu()[0]
-            q.put(_mu1 - _mu0)
-        except Exception as e:
-            q.put(float('-inf'))
-            raise e
+        step_results = []
+        for step in stmts:
+            try:
+                _mu0 = _mu()[0]
+                exec step in ns
+                _mu1 = _mu()[0]
+                step_results.append(_mu1 - _mu0)
+            except Exception as e:
+                step_results.append(float('-inf'))
+                raise e
+        q.put(step_results)
 
     if run_in_place:
         for _ in xrange(repeat):
@@ -644,7 +656,7 @@ def magic_memit(ns, line='', repeat=1, timeout=None, run_in_place=False):
         # run in consecutive subprocesses
         at_least_one_worked = False
         for _ in xrange(repeat):
-            p = pr.Process(target=_get_usage, args=(q, line, 'pass', ns))
+            p = pr.Process(target=_get_usage, args=(q, line, ns))
             p.start()
             p.join(timeout=timeout)
             if p.exitcode == 0:
@@ -655,14 +667,14 @@ def magic_memit(ns, line='', repeat=1, timeout=None, run_in_place=False):
                     print 'Subprocess timed out.'
                 else:
                     print 'Subprocess exited with code %d.' % p.exitcode
-                q.put(float('-inf'))
+#                q.put([float('-inf')])
 
         if not at_least_one_worked:
             raise RuntimeError('ERROR: all subprocesses exited unsuccessfully.'
                                ' Try again with the `-i` option.')
 
     usages = [q.get() for _ in xrange(repeat)]
-    usage = max(usages)
+    usage = [max(k) for k in zip(*usages)]
     return usage
 
 
