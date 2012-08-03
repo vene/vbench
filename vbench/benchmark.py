@@ -37,8 +37,8 @@ class Benchmark(object):
     def __repr__(self):
         return "Benchmark('%s')" % self.name
 
-    def plot(self, db_path, label='time', ax=None, title=True, y='timing',
-             ylabel='miliseconds'):
+    def plot(self, db_path, step_no=0, label='time', ax=None, title=True,
+             y='timing', ylabel='miliseconds'):
         import matplotlib.pyplot as plt
         from matplotlib.dates import MonthLocator, DateFormatter
 
@@ -83,18 +83,17 @@ class Benchmark(object):
 
         return ax
 
-    def get_results(self, db_path):
+    def get_results(self, db_path, step_no=0):
         from vbench.db import BenchmarkDB
         db = BenchmarkDB.get_instance(db_path)
-        return db.get_benchmark_results(self.checksum)
+        return db.get_benchmark_results(self.checksum, step_no)
 
-    def to_rst(self, benchmark_code=None, image_paths=None):
-        output = self.name
-        output += '\n' + '-' * len(self.name) + '\n\n'
-        if self.description:
-            output += self.description + '\n'
+    def to_rst(self, benchmark_code=None,
+               image_paths=None):
+        output = ''
         if benchmark_code:
             output += '\n%s\n' % benchmark_code
+
         if not image_paths:
             image_paths = []
         for title, path in image_paths:
@@ -119,8 +118,9 @@ class PythonBenchmark(Benchmark):
 
     setup: string,
         The code to run before attempting the benchmark.
-    code: string,
-        The lines of code to benchmark.
+    code: string or list of strings,
+        The lines of code to benchmark. If a list is passed, every element
+        is run in sequence.
     cleanup: string,
         The code to run after the benchmark is complete.
     """
@@ -128,7 +128,7 @@ class PythonBenchmark(Benchmark):
                  name=None, description=None, start_date=None, logy=False):
         super(PythonBenchmark, self).__init__(name, description, start_date,
                                               logy)
-        self.code = code
+        self.code = [code] if isinstance(code, str) else code
         self.setup = setup
         self.cleanup = cleanup or ''
         self.ncalls = ncalls
@@ -136,43 +136,49 @@ class PythonBenchmark(Benchmark):
 
     def run(self, disable_gc=False):
         ns = self._setup()
-        code = self.code
         if disable_gc:
             gc.disable()
-        timings = empty(self.repeat)
-        result = {}
-        result['traceback'] = ''
-        try:
-            for k in xrange(self.repeat):
-                start = time.clock()
-                for _ in xrange(self.ncalls):
-                    exec code in ns
+        results = []
+        for step in self.code:
+            timings = empty(self.repeat)
+            result = {}
+            result['traceback'] = ''
+            try:
+                for k in xrange(self.repeat):
+                    start = time.clock()
+                    for _ in xrange(self.ncalls):
+                        exec step in ns
 
-                timings[k] = time.clock() - start
-            result['succeeded'] = True
-        except:
-            buf = StringIO()
-            traceback.print_exc(file=buf)
-            result = {'succeeded': False, 'traceback': buf.getvalue()}
+                    timings[k] = time.clock() - start
+                result['succeeded'] = True
+            except:
+                buf = StringIO()
+                traceback.print_exc(file=buf)
+                result = {'succeeded': False, 'traceback': buf.getvalue()}
+            if result['succeeded']:
+                result.update({
+                    'timing_min': min(timings),
+                    'timing_max': max(timings),
+                    'timing_mean': mean(timings),
+                    'timing_median': median(timings),
+                    'timing_std': std(timings)
+                })
+                results.append(result)
+            else:
+                results.append(result)
+                break
 
         if disable_gc:
             gc.enable()
 
         self._cleanup(ns)
 
-        if result['succeeded']:
-            result.update({
-                'timing_min': min(timings),
-                'timing_max': max(timings),
-                'timing_mean': mean(timings),
-                'timing_median': median(timings),
-                'timing_std': std(timings)
-            })
-        return result
+        return results
 
     @property
     def checksum(self):
-        return hashlib.md5(self.setup + self.code + self.cleanup).hexdigest()
+        return hashlib.md5(self.setup + '\n'.join(self.code) + self.cleanup
+                           ).hexdigest()
 
     def _setup(self):
         ns = globals().copy()
@@ -187,23 +193,33 @@ class PythonBenchmark(Benchmark):
 
         image_paths: list of tuples (title, rel_path)
         """
-        benchmark_code = """\
+        output = self.name
+        output += '\n' + '-' * len(self.name) + '\n\n'
+        if self.description:
+            output += self.description + '\n'
+        if self.setup:
+            output += """\
 **Benchmark setup**
 
-.. code-block:: python
+ .. code-block:: python
 
 %s
 
+""" % indent(self.setup)
+
+        for step, image_path in zip(self.code, image_paths):
+            benchmark_code = """\
 **Benchmark statement**
 
 .. code-block:: python
 
 %s
 
-""" % (indent(self.setup), indent(self.code))
-        return super(PythonBenchmark, self).to_rst(
-                                            benchmark_code=benchmark_code,
-                                            image_paths=image_paths)
+""" % (indent(step))
+            output += super(PythonBenchmark, self).to_rst(
+                                                benchmark_code=benchmark_code,
+                                                image_paths=image_path)
+        return output
 
 
 class TimeitBenchmark(PythonBenchmark):
@@ -216,74 +232,77 @@ class TimeitBenchmark(PythonBenchmark):
 
     def run(self):
         ns = self._setup()
-
-        try:
-            result = magic_timeit(ns, self.code, ncalls=self.ncalls,
-                                  repeat=self.repeat, force_ms=True)
-            result['succeeded'] = True
-        except:
-            buf = StringIO()
-            traceback.print_exc(file=buf)
-            result = {'succeeded': False, 'traceback': buf.getvalue()}
-
+        results = []
+        for step in self.code:
+            try:
+                result = magic_timeit(ns, step, ncalls=self.ncalls,
+                                      repeat=self.repeat, force_ms=True)
+                result['succeeded'] = True
+                result['traceback'] = ''  # in case someone downstream needs it
+            except:
+                buf = StringIO()
+                traceback.print_exc(file=buf)
+                result = {'succeeded': False, 'traceback': buf.getvalue()}
+            results.append(result)
         self._cleanup(ns)
-        return result
+        return results
 
 
 class MemoryBenchmarkMixin(PythonBenchmark):
     def run(self):
-        result = super(MemoryBenchmarkMixin, self).run()
-        try:
-            ns = self._setup()
-            mem_usage = magic_memit(ns, self.code, repeat=self.repeat)
-            result['memory'] = mem_usage
-            result['mem_succeeded'] = True
-            self._cleanup(ns)
-        except:
-            buf = StringIO()
-            result['mem_succeeded'] = False
-            traceback.print_exc(file=buf)
-            result['traceback'] += buf.getvalue()
-        return result
+        results = super(MemoryBenchmarkMixin, self).run()
+        ns = self._setup()
+        for step, result in zip(self.code, results):
+            try:
+                mem_usage = magic_memit(ns, step, repeat=self.repeat)
+                result['memory'] = mem_usage
+                result['mem_succeeded'] = True
+            except:
+                buf = StringIO()
+                result['mem_succeeded'] = False
+                traceback.print_exc(file=buf)
+                result['traceback'] += buf.getvalue()
+        self._cleanup(ns)
+        return results
 
 
 class CProfileBenchmarkMixin(PythonBenchmark):
     def run(self):
-        result = super(CProfileBenchmarkMixin, self).run()
-        prof = cProfile.Profile()
+        results = super(CProfileBenchmarkMixin, self).run()
         ns = self._setup()
+        for step, result in zip(self.code, results):
+            prof = cProfile.Profile()
+            code = compile(step, '<f>', 'exec')
 
-        code = compile(self.code, '<f>', 'exec')
+            def f(*args, **kw):
+                for i in xrange(self.ncalls):
+                    exec code in ns
 
-        def f(*args, **kw):
-            for i in xrange(self.ncalls):
-                exec code in ns
-
-        backup = sys.stdout
-        sys.stdout = StringIO()  # capture output
-        try:
-            prof.runcall(f)
-            stats = pstats.Stats(prof).sort_stats('cumulative')
-            stats.print_stats()
-            profile = sys.stdout.getvalue()
-            sys.stdout.close()
-            result.update({
-                'succeeded': True,
-                'timing': stats.total_tt,
-                'profile': profile
-            })
-        except:
-            buf = StringIO()
-            result['succeeded'] = False
-            traceback.print_exc(file=buf)
-            result['traceback'] += buf.getvalue()
-        finally:
-            sys.stdout = backup
-
+            backup = sys.stdout
+            sys.stdout = StringIO()  # capture output
+            try:
+                prof.runcall(f)
+                stats = pstats.Stats(prof).sort_stats('cumulative')
+                stats.print_stats()
+                profile = sys.stdout.getvalue()
+                sys.stdout.close()
+                result.update({
+                    'succeeded': True,
+                    'timing': stats.total_tt,
+                    'profile': profile
+                })
+            except:
+                buf = StringIO()
+                result['succeeded'] = False
+                traceback.print_exc(file=buf)
+                result['traceback'] += buf.getvalue()
+            finally:
+                sys.stdout = backup
         self._cleanup(ns)
-        return result
+        return results
 
     def to_rst(self, db_path=None, image_paths=None):
+        # XXX: outdated
         result = super(CProfileBenchmarkMixin, self).to_rst(image_paths)
         profile_out = ''
         if db_path:
@@ -308,32 +327,33 @@ class LineProfilerBenchmarkMixin(PythonBenchmark):
 
     def run(self):
         from line_profiler import LineProfiler
-        result = super(LineProfilerBenchmarkMixin, self).run()
+        results = super(LineProfilerBenchmarkMixin, self).run()
         ns = self._setup()
         prof = LineProfiler(*[eval(fun, ns) for fun in self.functions])
 
-        code = compile(self.code, '<f>', 'exec')
+        for step, result in zip(self.code, results):
+            code = compile(step, '<f>', 'exec')
 
-        def f(*args, **kw):
-            for i in xrange(self.ncalls):
-                exec code in ns
+            def f(*args, **kw):
+                for i in xrange(self.ncalls):
+                    exec code in ns
 
-        try:
-            prof.runcall(f)
-            stats = StringIO()
-            prof.print_stats(stats)
-            result.update({
-                'succeeded': True,
-                'line_profile': stats.getvalue()
-            })
-        except:
-            buf = StringIO()
-            result['succeeded'] = False
-            traceback.print_exc(file=buf)
-            result['traceback'] += buf.getvalue()
+            try:
+                prof.runcall(f)
+                stats = StringIO()
+                prof.print_stats(stats)
+                result.update({
+                    'succeeded': True,
+                    'line_profile': stats.getvalue()
+                })
+            except:
+                buf = StringIO()
+                result['succeeded'] = False
+                traceback.print_exc(file=buf)
+                result['traceback'] += buf.getvalue()
 
-        self._cleanup(ns)
-        return result
+        self._cleanup(gns)
+        return results
 
 
 def _get_assigned_name(frame):

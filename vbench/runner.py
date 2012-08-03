@@ -89,21 +89,17 @@ class BenchmarkRunner(object):
         Returns True if any runs succeeded
         """
         n_active_benchmarks, results = self._run_revision(rev)
-        tracebacks = []
-
+        timestamp = self.repo.timestamps[rev]
         any_succeeded = False
 
-        for checksum, timing in results.iteritems():
-            if 'traceback' in timing:
-                tracebacks.append(timing['traceback'])
-
-            timestamp = self.repo.timestamps[rev]
-
-            any_succeeded = any_succeeded or 'timing' in timing
-            for key in timing.keys():
-                if key.endswith('succeeded'):
-                    timing.pop(key, None)
-            self.db.write_result(checksum, rev, timestamp, result=timing)
+        for checksum, result in results.iteritems():
+            for step_no, step in enumerate(result):
+                any_succeeded = any_succeeded or 'timing' in step
+                for key in step.keys():
+                    if key.endswith('succeeded'):
+                        step.pop(key, None)
+                self.db.write_result(checksum, rev, step_no, timestamp,
+                                     result=step)
 
         return any_succeeded, n_active_benchmarks
 

@@ -26,6 +26,7 @@ class BenchmarkDB(object):
             Column('checksum', sqltypes.String(32),
                    ForeignKey('benchmarks.checksum'), primary_key=True),
             Column('revision', sqltypes.String(50), primary_key=True),
+            Column('step_no', sqltypes.Integer, primary_key=True),
             Column('timestamp', sqltypes.DateTime, nullable=False),
             Column('ncalls', sqltypes.String(50)),
             Column('timing', sqltypes.Float),
@@ -104,13 +105,13 @@ class BenchmarkDB(object):
         """
         pass
 
-    def write_result(self, checksum, revision, timestamp, result,
+    def write_result(self, checksum, revision, step_no, timestamp, result,
                      overwrite=False):
         """
 
         """
         ins = self._results.insert()
-        ins = ins.values(checksum=checksum, revision=revision,
+        ins = ins.values(checksum=checksum, revision=revision, step_no=step_no,
                          timestamp=timestamp, **result)
         self.conn.execute(ins)  # XXX: return the result?
 
@@ -158,7 +159,7 @@ class BenchmarkDB(object):
         stmt = self._blacklist.delete()
         self.conn.execute(stmt)
 
-    def get_benchmark_results(self, checksum):
+    def get_benchmark_results(self, checksum, step_no=0):
         """
 
             Column('timing_min', sqltypes.Float),
@@ -175,7 +176,8 @@ class BenchmarkDB(object):
                            tab.c.timing_mean, tab.c.timing_median,
                            tab.c.timing_std, tab.c.profile, tab.c.line_profile,
                            tab.c.memory, tab.c.traceback],
-                          sql.and_(tab.c.checksum == checksum))
+                          sql.and_(tab.c.checksum == checksum,
+                                   tab.c.step_no == step_no))
         results = self.conn.execute(stmt)
 
         df = _sqa_to_frame(results).set_index('timestamp')
