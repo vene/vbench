@@ -141,6 +141,7 @@ class PythonBenchmark(Benchmark):
             gc.disable()
         timings = empty(self.repeat)
         result = {}
+        result['traceback'] = ''
         try:
             for k in xrange(self.repeat):
                 start = time.clock()
@@ -242,7 +243,7 @@ class MemoryBenchmarkMixin(PythonBenchmark):
             buf = StringIO()
             result['mem_succeeded'] = False
             traceback.print_exc(file=buf)
-            result['traceback'] += buf
+            result['traceback'] += buf.getvalue()
         return result
 
 
@@ -275,7 +276,7 @@ class CProfileBenchmarkMixin(PythonBenchmark):
             buf = StringIO()
             result['succeeded'] = False
             traceback.print_exc(file=buf)
-            result['traceback'] += buf
+            result['traceback'] += buf.getvalue()
         finally:
             sys.stdout = backup
 
@@ -329,7 +330,7 @@ class LineProfilerBenchmarkMixin(PythonBenchmark):
             buf = StringIO()
             result['succeeded'] = False
             traceback.print_exc(file=buf)
-            result['traceback'] += buf
+            result['traceback'] += buf.getvalue()
 
         self._cleanup(ns)
         return result
