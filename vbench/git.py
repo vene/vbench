@@ -1,10 +1,11 @@
+from pandas import *
+
 from dateutil import parser
 import subprocess
 import os
 
 import numpy as np
 
-from pandas import *
 
 
 class Repo(object):
